@@ -7,9 +7,19 @@ from bs4 import BeautifulSoup
 # --- CONFIG ---
 SLACK_TOKEN = os.environ["SLACK_BOT_TOKEN"]   # stored in GitHub Secrets
 CHANNEL_ID = os.environ["SLACK_CHANNEL_ID"]   # stored in GitHub Secrets
-JOB_KEYWORD = "business analyst"              # change to your job title
-JOB_LOCATION = "Brisbane"                     # change to your city
-MAX_JOBS = 5                                   # number of jobs to post
+MAX_JOBS = 2                                   # number of jobs per search
+
+# --- SEARCH COMBINATIONS ---
+SEARCHES = [
+    {"keyword": "business analyst", "location": "Brisbane"},
+    {"keyword": "business analyst", "location": "Sydney"},
+    {"keyword": "business analyst", "location": "Melbourne"},
+    {"keyword": "business analyst", "location": "Adelaide"},
+    {"keyword": "senior business analyst", "location": "Brisbane"},
+    {"keyword": "senior business analyst", "location": "Sydney"},
+    {"keyword": "senior business analyst", "location": "Melbourne"},
+    {"keyword": "senior business analyst", "location": "Adelaide"},
+]
 
 # --- SCRAPE SEEK ---
 def scrape_seek_jobs(keyword, location):
@@ -22,7 +32,7 @@ def scrape_seek_jobs(keyword, location):
     response = requests.get(url, headers=headers, timeout=10)
 
     if response.status_code != 200:
-        print(f"Failed to fetch Seek page. Status code: {response.status_code}")
+        print(f"Failed to fetch Seek page for {keyword} in {location}. Status: {response.status_code}")
         return []
 
     soup = BeautifulSoup(response.text, "html.parser")
@@ -54,33 +64,51 @@ def scrape_seek_jobs(keyword, location):
 
 
 # --- POST TO SLACK ---
-def post_to_slack(jobs):
+def post_to_slack(all_results):
     client = WebClient(token=SLACK_TOKEN)
 
-    if not jobs:
-        message = "No job listings found on Seek today. Will check again in 3 days."
-        client.chat_postMessage(channel=CHANNEL_ID, text=message)
+    if not all_results:
+        client.chat_postMessage(
+            channel=CHANNEL_ID,
+            text="No job listings found on Seek today. Will check again in 3 days."
+        )
         return
 
-    intro = f"🔔 *Latest {JOB_KEYWORD.title()} jobs on Seek — {JOB_LOCATION}:*\n"
-    job_lines = []
+    message_blocks = ["🔔 *Latest Business Analyst & Senior Business Analyst Jobs on Seek:*\n"]
 
-    for i, job in enumerate(jobs, start=1):
-        line = f"{i}. *{job['title']}*\n   🏢 {job['company']}  📍 {job['location']}\n   🔗 {job['link']}"
-        job_lines.append(line)
+    for search, jobs in all_results:
+        keyword = search["keyword"].title()
+        location = search["location"]
 
-    full_message = intro + "\n\n" + "\n\n".join(job_lines)
+        if not jobs:
+            message_blocks.append(f"\n*{keyword} — {location}*\nNo listings found.\n")
+            continue
+
+        section = f"\n*{keyword} — {location}:*\n"
+        job_lines = []
+        for i, job in enumerate(jobs, start=1):
+            line = f"{i}. *{job['title']}*\n   🏢 {job['company']}  📍 {job['location']}\n   🔗 {job['link']}"
+            job_lines.append(line)
+
+        section += "\n\n".join(job_lines)
+        message_blocks.append(section)
+
+    full_message = "\n".join(message_blocks)
 
     try:
         client.chat_postMessage(channel=CHANNEL_ID, text=full_message)
-        print(f"Posted {len(jobs)} jobs to Slack successfully.")
+        print("Posted all jobs to Slack successfully.")
     except SlackApiError as e:
         print(f"Slack API error: {e.response['error']}")
 
 
 # --- MAIN ---
 if __name__ == "__main__":
-    print(f"Searching Seek for: {JOB_KEYWORD} in {JOB_LOCATION}")
-    jobs = scrape_seek_jobs(JOB_KEYWORD, JOB_LOCATION)
-    print(f"Found {len(jobs)} jobs")
-    post_to_slack(jobs)
+    all_results = []
+    for search in SEARCHES:
+        print(f"Searching: {search['keyword']} in {search['location']}")
+        jobs = scrape_seek_jobs(search["keyword"], search["location"])
+        print(f"Found {len(jobs)} jobs")
+        all_results.append((search, jobs))
+
+    post_to_slack(all_results)
