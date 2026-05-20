@@ -74,7 +74,7 @@ def post_to_slack(all_results):
         )
         return
 
-    message_blocks = ["🔔 *Latest Business Analyst & Senior Business Analyst Jobs on Seek:*\n"]
+    message_blocks = ["<!channel> 🔔 *Latest Business Analyst & Senior Business Analyst Jobs on Seek:*\n"]
 
     for search, jobs in all_results:
         keyword = search["keyword"].title()
