@@ -2,7 +2,7 @@ name: Seek Job Bot
 
 on:
   schedule:
-    - cron: "0 9 */3 * *"   # runs every 3 days at 9am UTC
+    - cron: "0 22 */3 * *"   # runs every 3 days at 8am Brisbane time (AEST UTC+10)
   workflow_dispatch:          # lets you run it manually anytime from GitHub
 
 jobs:
